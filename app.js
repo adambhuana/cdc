@@ -10,7 +10,15 @@
     let currentPage = 1;
     let selectedAngkatan = 'all';
     let selectedSemester = 'all';
+    let selectedKelas = 'all';
     const PAGE_SIZE = 15;
+
+    // Kelas mapping
+    const KELAS_MAP = {
+        'Reg': 'Reguler',
+        'Pro': 'Profesional',
+        'Aksel': 'Akselerasi'
+    };
 
     // Chart instances for destroy/recreate
     let barChartInstance = null;
@@ -31,6 +39,8 @@
             processData();
             buildAngkatanChips();
             buildAngkatanSelect();
+            buildKelasChips();
+            buildKelasSelect();
             renderDashboard();
             renderTable();
             renderMagangTable();
@@ -50,11 +60,28 @@
         return '20' + prefix;
     }
 
+    function parseKelas(kelasPerkuliahan) {
+        if (!kelasPerkuliahan) return '';
+        const str = String(kelasPerkuliahan).trim();
+        if (str.includes('Aksel')) return 'Aksel';
+        if (str.includes('Pro')) return 'Pro';
+        if (str.includes('Reg')) return 'Reg';
+        return '';
+    }
+
+    function getKelasLabel(kode) {
+        return KELAS_MAP[kode] || kode || '-';
+    }
+
     function getFilteredData(data) {
         let result = data;
         // Filter by angkatan
         if (selectedAngkatan !== 'all') {
             result = result.filter(m => m.angkatan === selectedAngkatan);
+        }
+        // Filter by kelas
+        if (selectedKelas !== 'all') {
+            result = result.filter(m => m.kelas === selectedKelas);
         }
         // Filter by semester: only keep students who have at least one internship in that semester
         if (selectedSemester !== 'all') {
@@ -85,7 +112,8 @@
 
         mahasiswaData = XLSX.utils.sheet_to_json(mhsSheet).map(row => ({
             nim: String(row['NIM'] || '').replace(/^'/, '').trim(),
-            nama: String(row['Nama'] || '').trim()
+            nama: String(row['Nama'] || '').trim(),
+            kelasPerkuliahan: String(row['Kelas Perkuliahan'] || '').trim()
         })).filter(r => r.nim && r.nama);
 
         const rawMagang = XLSX.utils.sheet_to_json(mgSheet);
@@ -194,6 +222,8 @@
                 nim: mhs.nim,
                 nama: mhs.nama,
                 angkatan: getAngkatan(mhs.nim),
+                kelas: parseKelas(mhs.kelasPerkuliahan),
+                kelasPerkuliahan: mhs.kelasPerkuliahan,
                 jumlahMagang: internships.length,
                 internships: internships
             };
@@ -229,6 +259,37 @@
             const opt = document.createElement('option');
             opt.value = year;
             opt.textContent = year;
+            select.appendChild(opt);
+        });
+    }
+
+    // ===== Kelas Chips & Select =====
+    function getKelasList() {
+        const set = new Set(mergedData.map(m => m.kelas).filter(k => k));
+        return Array.from(set).sort();
+    }
+
+    function buildKelasChips() {
+        const container = $('#kelasChips');
+        if (!container) return;
+        const kelasList = getKelasList();
+        kelasList.forEach(kode => {
+            const btn = document.createElement('button');
+            btn.className = 'chip';
+            btn.dataset.kelas = kode;
+            btn.textContent = getKelasLabel(kode);
+            container.appendChild(btn);
+        });
+    }
+
+    function buildKelasSelect() {
+        const select = $('#filterKelas');
+        if (!select) return;
+        const kelasList = getKelasList();
+        kelasList.forEach(kode => {
+            const opt = document.createElement('option');
+            opt.value = kode;
+            opt.textContent = getKelasLabel(kode);
             select.appendChild(opt);
         });
     }
@@ -463,11 +524,14 @@
             const badgeClass = m.jumlahMagang === 0 ? 'badge-red' :
                                m.jumlahMagang === 1 ? 'badge-orange' :
                                m.jumlahMagang === 2 ? 'badge-blue' : 'badge-green';
+            const kelasBadge = m.kelas === 'Pro' ? 'badge-kelas-pro' :
+                               m.kelas === 'Aksel' ? 'badge-kelas-aksel' : 'badge-kelas-reg';
             return `<tr>
                 <td>${start + i + 1}</td>
                 <td style="font-family:monospace;color:var(--accent-cyan)">${m.nim}</td>
                 <td style="font-weight:600;color:var(--text-primary)">${m.nama}</td>
                 <td><span class="badge badge-purple">${m.angkatan}</span></td>
+                <td><span class="badge ${kelasBadge}">${getKelasLabel(m.kelas)}</span></td>
                 <td><span class="badge ${badgeClass}">${m.jumlahMagang} magang</span></td>
                 <td><button class="btn-detail" onclick="showDetail('${m.nim}')">Detail</button></td>
             </tr>`;
@@ -616,6 +680,7 @@
         const search = ($('#searchInput').value || '').toLowerCase().trim();
         const angkatanFilter = $('#filterAngkatan').value;
         const semesterFilter = $('#filterSemester').value;
+        const kelasFilter = $('#filterKelas').value;
 
         filteredData = mergedData.map(m => {
             // If semester filter active, narrow internships
@@ -627,6 +692,8 @@
         }).filter(m => {
             // Angkatan filter (table-level)
             if (angkatanFilter !== 'all' && m.angkatan !== angkatanFilter) return false;
+            // Kelas filter (table-level)
+            if (kelasFilter !== 'all' && m.kelas !== kelasFilter) return false;
             // Filter by magang count
             if (filterVal === '0' && m.jumlahMagang !== 0) return false;
             if (filterVal === '1' && m.jumlahMagang !== 1) return false;
@@ -694,6 +761,10 @@
                     <div class="info-item">
                         <div class="label">Angkatan</div>
                         <div class="value">${mhs.angkatan}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="label">Kelas</div>
+                        <div class="value">${getKelasLabel(mhs.kelas)}</div>
                     </div>
                     <div class="info-item">
                         <div class="label">Total Magang</div>
@@ -790,11 +861,22 @@
             renderDashboard();
         });
 
+        // Kelas chip buttons (dashboard level)
+        $('#kelasChips').addEventListener('click', e => {
+            const chip = e.target.closest('.chip');
+            if (!chip) return;
+            $$('#kelasChips .chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            selectedKelas = chip.dataset.kelas;
+            renderDashboard();
+        });
+
         // Table filters
         $('#filterMagang').addEventListener('change', applyFilters);
         $('#sortBy').addEventListener('change', applyFilters);
         $('#filterAngkatan').addEventListener('change', applyFilters);
         $('#filterSemester').addEventListener('change', applyFilters);
+        $('#filterKelas').addEventListener('change', applyFilters);
 
         // Posisi section filters
         let posSearchTimeout;

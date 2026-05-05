@@ -179,7 +179,7 @@ body {
     font-size: 0.85rem; font-weight: 600;
     color: var(--text-secondary); white-space: nowrap;
 }
-.angkatan-chips, .semester-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.angkatan-chips, .semester-chips, .kelas-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip {
     padding: 6px 18px; border-radius: 20px;
     border: 1px solid var(--border);
@@ -286,6 +286,9 @@ body {
 .badge-orange { background: rgba(245,158,11,0.15); color: var(--accent-orange); }
 .badge-blue { background: rgba(59,130,246,0.15); color: var(--accent-blue); }
 .badge-red { background: rgba(239,68,68,0.15); color: #ef4444; }
+.badge-kelas-reg { background: rgba(59,130,246,0.15); color: var(--accent-blue); }
+.badge-kelas-pro { background: rgba(245,158,11,0.15); color: var(--accent-orange); }
+.badge-kelas-aksel { background: rgba(236,72,153,0.15); color: var(--accent-pink); }
 
 .btn-detail {
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
