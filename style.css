@@ -398,6 +398,139 @@ body {
     color: var(--text-muted); font-size: 0.9rem;
 }
 
+/* ===== Inline Search Box ===== */
+.search-box-inline {
+    border-radius: 8px;
+}
+.search-box-inline input {
+    width: 200px;
+}
+
+/* ===== Position Cards ===== */
+.position-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
+}
+.position-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: var(--transition);
+}
+.position-card:hover {
+    border-color: var(--border-light);
+    box-shadow: var(--shadow);
+}
+.position-card-header {
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+}
+.position-card-header:hover {
+    background: var(--bg-card-hover);
+}
+.position-card-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+}
+.position-card-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.2rem;
+}
+.position-card-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.position-card-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.position-card-badge {
+    background: rgba(59,130,246,0.15);
+    color: var(--accent-blue);
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 6px 14px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+.position-card-toggle {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted);
+    transition: var(--transition);
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.position-card.expanded .position-card-toggle {
+    transform: rotate(180deg);
+}
+.position-card-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.position-card.expanded .position-card-body {
+    max-height: 1000px;
+}
+.position-card-content {
+    padding: 0 20px 20px;
+    border-top: 1px solid var(--border);
+}
+.position-student-list {
+    list-style: none;
+    margin-top: 14px;
+}
+.position-student-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    background: rgba(59,130,246,0.04);
+    border: 1px solid transparent;
+    transition: var(--transition);
+}
+.position-student-item:hover {
+    border-color: var(--accent-blue);
+    background: rgba(59,130,246,0.08);
+}
+.position-student-item:last-child { margin-bottom: 0; }
+.position-student-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.position-student-name {
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--text-primary);
+}
+.position-student-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 10px;
+    margin-top: 2px;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 1200px) {
     .stats-grid-5 { grid-template-columns: repeat(3, 1fr); }
@@ -406,6 +539,7 @@ body {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .stats-grid-5 { grid-template-columns: repeat(2, 1fr); }
     .charts-grid { grid-template-columns: 1fr; }
+    .position-cards-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); }
@@ -423,10 +557,11 @@ body {
     .data-table { font-size: 0.8rem; }
     .data-table th, .data-table td { padding: 10px 12px; }
     .dashboard-filter-bar { flex-direction: column; align-items: flex-start; }
+    .search-box-inline input { width: 150px; }
 }
 @media (max-width: 480px) {
     .stats-grid, .stats-grid-5 { grid-template-columns: 1fr; }
-    .search-box { display: none; }
+    .search-box:not(.search-box-inline) { display: none; }
 }
 
 /* ===== Scrollbar ===== */

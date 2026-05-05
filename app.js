@@ -15,6 +15,7 @@
     let barChartInstance = null;
     let doughnutChartInstance = null;
     let companyChartInstance = null;
+    let positionChartInstance = null;
 
     // ===== DOM Refs =====
     const $ = (sel) => document.querySelector(sel);
@@ -32,6 +33,7 @@
             renderDashboard();
             renderTable();
             renderMagangTable();
+            renderPositionSection();
             setupEvents();
             showApp();
         } catch (err) {
@@ -91,6 +93,49 @@
             .replace(/[^A-Z\s]/g, '')
             .replace(/\s+/g, ' ')
             .trim();
+    }
+
+    // Position normalization: case-insensitive + merge similar names
+    const POSITION_ALIASES = {
+        'frontend': 'Frontend Developer',
+        'frontend developer': 'Frontend Developer',
+        'front end': 'Frontend Developer',
+        'front end developer': 'Frontend Developer',
+        'frontend dev': 'Frontend Developer',
+        'data analyst': 'Data Analyst',
+        'data analist': 'Data Analyst',
+        'data analysis': 'Data Analyst',
+        'software developer': 'Software Developer',
+        'software engineer': 'Software Engineer',
+        'fullstack developer': 'Fullstack Developer',
+        'full stack developer': 'Fullstack Developer',
+        'social media specialist': 'Social Media Specialist',
+        'socia media specialist': 'Social Media Specialist',
+        'social media': 'Social Media Specialist',
+        'graphic design': 'Graphic Designer',
+        'graphic designer': 'Graphic Designer',
+        'digital marketing': 'Digital Marketing',
+        'python developer': 'Python Developer',
+        'programmer': 'Programmer',
+        'project manager': 'Project Manager',
+        'technical writer': 'Technical Writer',
+        'data engineer': 'Data Engineer',
+    };
+
+    function normalizePosition(pos) {
+        const trimmed = pos.trim();
+        if (!trimmed) return '';
+        const lower = trimmed.toLowerCase();
+        // Check exact alias match first
+        if (POSITION_ALIASES[lower]) return POSITION_ALIASES[lower];
+        // Check if any alias key is contained in the position or vice versa
+        for (const [key, canonical] of Object.entries(POSITION_ALIASES)) {
+            if (lower.includes(key) || key.includes(lower)) {
+                return canonical;
+            }
+        }
+        // No alias found: title-case the original
+        return trimmed.replace(/\b\w/g, c => c.toUpperCase());
     }
 
     function processData() {
@@ -191,6 +236,7 @@
         renderBarChart(data);
         renderDoughnutChart(sudah, belum);
         renderCompanyChart(data);
+        renderPositionChart(data);
     }
 
     function animateCounter(id, target) {
@@ -347,6 +393,50 @@
         $('#companyChart').parentElement.style.height = '320px';
     }
 
+    function renderPositionChart(data) {
+        const posCount = {};
+        data.forEach(m => {
+            m.internships.forEach(i => {
+                const p = normalizePosition(i.position);
+                if (p) posCount[p] = (posCount[p] || 0) + 1;
+            });
+        });
+
+        const sorted = Object.entries(posCount).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        const colors = ['#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#84cc16', '#ef4444'];
+
+        if (positionChartInstance) positionChartInstance.destroy();
+        positionChartInstance = new Chart($('#positionChart'), {
+            type: 'bar',
+            data: {
+                labels: sorted.map(s => s[0].length > 25 ? s[0].substring(0, 23) + '...' : s[0]),
+                datasets: [{
+                    label: 'Jumlah Mahasiswa',
+                    data: sorted.map(s => s[1]),
+                    backgroundColor: colors.map(c => c + 'bb'),
+                    borderColor: colors,
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    barPercentage: 0.6,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { backgroundColor: '#1a1f35', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: '#334155', borderWidth: 1, cornerRadius: 8, padding: 12 }
+                },
+                scales: {
+                    x: { beginAtZero: true, ticks: { color: '#64748b', stepSize: 1, font: { family: 'Inter' } }, grid: { color: 'rgba(30,41,59,0.5)' }, border: { display: false } },
+                    y: { ticks: { color: '#94a3b8', font: { family: 'Inter', size: 11 } }, grid: { display: false }, border: { display: false } }
+                }
+            }
+        });
+        $('#positionChart').parentElement.style.height = '320px';
+    }
+
     // ===== Table Rendering =====
     function renderTable() {
         const tbody = $('#mahasiswaBody');
@@ -401,6 +491,107 @@
             <td>${m.compensation}</td>
         </tr>`).join('');
     }
+
+    // ===== Position Section =====
+    function getPositionData() {
+        const posMap = {};
+        mergedData.forEach(m => {
+            m.internships.forEach(int => {
+                const pos = normalizePosition(int.position);
+                if (!pos) return;
+                if (!posMap[pos]) posMap[pos] = [];
+                posMap[pos].push({
+                    nim: m.nim,
+                    nama: m.nama,
+                    angkatan: m.angkatan,
+                    company: int.company,
+                    semester: int.semester,
+                    compensation: int.compensation,
+                    feedback: int.feedback
+                });
+            });
+        });
+        return posMap;
+    }
+
+    function renderPositionSection() {
+        const posMap = getPositionData();
+        const search = ($('#filterPosisiSearch')?.value || '').toLowerCase().trim();
+        const sortVal = $('#sortPosisi')?.value || 'count-desc';
+
+        let entries = Object.entries(posMap);
+
+        // Filter by search
+        if (search) {
+            entries = entries.filter(([pos]) => pos.toLowerCase().includes(search));
+        }
+
+        // Sort
+        const [field, dir] = sortVal.split('-');
+        entries.sort((a, b) => {
+            if (field === 'name') return dir === 'asc' ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0]);
+            return dir === 'asc' ? a[1].length - b[1].length : b[1].length - a[1].length;
+        });
+
+        const iconColors = [
+            'rgba(6,182,212,0.15)', 'rgba(16,185,129,0.15)', 'rgba(245,158,11,0.15)',
+            'rgba(236,72,153,0.15)', 'rgba(139,92,246,0.15)', 'rgba(59,130,246,0.15)',
+            'rgba(132,204,22,0.15)', 'rgba(239,68,68,0.15)'
+        ];
+        const posIcons = ['💼', '📊', '💻', '🎨', '📝', '🔧', '📈', '🔬', '🎯', '📱'];
+
+        const container = $('#positionCardsGrid');
+        container.innerHTML = entries.map(([pos, students], idx) => {
+            const icon = posIcons[idx % posIcons.length];
+            const bgColor = iconColors[idx % iconColors.length];
+            const studentListHtml = students.map(s => `
+                <div class="position-student-item" onclick="showDetail('${s.nim}')" style="cursor:pointer">
+                    <div class="position-student-info">
+                        <span class="position-student-name">${s.nama}</span>
+                        <div class="position-student-meta">
+                            <span>🏢 ${s.company}</span>
+                            <span>📅 Sem. ${s.semester}</span>
+                            <span>🎓 ${s.angkatan}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            return `
+                <div class="position-card" id="posCard${idx}">
+                    <div class="position-card-header" onclick="togglePositionCard(${idx})">
+                        <div class="position-card-title">
+                            <div class="position-card-icon" style="background:${bgColor}">${icon}</div>
+                            <div>
+                                <div class="position-card-name" title="${pos}">${pos}</div>
+                                <div class="position-card-count">${students.length} mahasiswa</div>
+                            </div>
+                        </div>
+                        <span class="position-card-badge">${students.length}</span>
+                        <div class="position-card-toggle">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="6 9 12 15 18 9"/></svg>
+                        </div>
+                    </div>
+                    <div class="position-card-body">
+                        <div class="position-card-content">
+                            <ul class="position-student-list">
+                                ${studentListHtml}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (entries.length === 0) {
+            container.innerHTML = '<div class="no-data">Tidak ada posisi ditemukan</div>';
+        }
+    }
+
+    window.togglePositionCard = function(idx) {
+        const card = document.getElementById('posCard' + idx);
+        if (card) card.classList.toggle('expanded');
+    };
 
     // ===== Filtering & Sorting =====
     function applyFilters() {
@@ -516,7 +707,8 @@
         const titles = {
             dashboard: ['Dashboard Statistik', 'Ringkasan data magang mahasiswa Sains Data'],
             mahasiswa: ['Data Mahasiswa', 'Daftar lengkap mahasiswa dan pengalaman magang'],
-            magang: ['Data Magang', 'Seluruh data magang mahasiswa Sains Data']
+            magang: ['Data Magang', 'Seluruh data magang mahasiswa Sains Data'],
+            posisi: ['Posisi Magang', 'Detail mahasiswa berdasarkan posisi/profesi magang']
         };
         $('#pageTitle').textContent = titles[section][0];
         $('#pageSubtitle').textContent = titles[section][1];
@@ -568,6 +760,14 @@
         $('#filterMagang').addEventListener('change', applyFilters);
         $('#sortBy').addEventListener('change', applyFilters);
         $('#filterAngkatan').addEventListener('change', applyFilters);
+
+        // Posisi section filters
+        let posSearchTimeout;
+        $('#filterPosisiSearch').addEventListener('input', () => {
+            clearTimeout(posSearchTimeout);
+            posSearchTimeout = setTimeout(renderPositionSection, 300);
+        });
+        $('#sortPosisi').addEventListener('change', renderPositionSection);
 
         // Search
         let searchTimeout;
