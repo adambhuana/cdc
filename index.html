@@ -80,13 +80,28 @@
             <section id="sectionDashboard" class="content-section active">
                 <!-- Angkatan Filter -->
                 <div class="dashboard-filter-bar">
-                    <div class="filter-bar-label">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-                        <span>Filter Angkatan:</span>
+                    <div class="filter-bar-group">
+                        <div class="filter-bar-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                            <span>Angkatan:</span>
+                        </div>
+                        <div class="angkatan-chips" id="angkatanChips">
+                            <button class="chip active" data-angkatan="all">Semua</button>
+                        </div>
                     </div>
-                    <div class="angkatan-chips" id="angkatanChips">
-                        <button class="chip active" data-angkatan="all">Semua</button>
-                        <!-- Chips will be dynamically added -->
+                    <div class="filter-bar-divider"></div>
+                    <div class="filter-bar-group">
+                        <div class="filter-bar-label">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                            <span>Semester:</span>
+                        </div>
+                        <div class="semester-chips" id="semesterChips">
+                            <button class="chip active" data-semester="all">Semua</button>
+                            <button class="chip" data-semester="1">Sem. 1</button>
+                            <button class="chip" data-semester="2">Sem. 2</button>
+                            <button class="chip" data-semester="3">Sem. 3</button>
+                            <button class="chip" data-semester="4">Sem. 4</button>
+                        </div>
                     </div>
                 </div>
 
@@ -191,6 +206,16 @@
                         <label for="filterAngkatan">Angkatan:</label>
                         <select id="filterAngkatan">
                             <option value="all">Semua</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterSemester">Semester:</label>
+                        <select id="filterSemester">
+                            <option value="all">Semua</option>
+                            <option value="1">Semester 1</option>
+                            <option value="2">Semester 2</option>
+                            <option value="3">Semester 3</option>
+                            <option value="4">Semester 4</option>
                         </select>
                     </div>
                     <div class="filter-group">

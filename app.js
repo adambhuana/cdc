@@ -9,6 +9,7 @@
     let filteredData = [];
     let currentPage = 1;
     let selectedAngkatan = 'all';
+    let selectedSemester = 'all';
     const PAGE_SIZE = 15;
 
     // Chart instances for destroy/recreate
@@ -49,9 +50,24 @@
         return '20' + prefix;
     }
 
-    function getFilteredByAngkatan(data) {
-        if (selectedAngkatan === 'all') return data;
-        return data.filter(m => getAngkatan(m.nim) === selectedAngkatan);
+    function getFilteredData(data) {
+        let result = data;
+        // Filter by angkatan
+        if (selectedAngkatan !== 'all') {
+            result = result.filter(m => m.angkatan === selectedAngkatan);
+        }
+        // Filter by semester: only keep students who have at least one internship in that semester
+        if (selectedSemester !== 'all') {
+            result = result.map(m => {
+                const filteredInternships = m.internships.filter(i => String(i.semester).trim() === selectedSemester);
+                return {
+                    ...m,
+                    internships: filteredInternships,
+                    jumlahMagang: filteredInternships.length
+                };
+            });
+        }
+        return result;
     }
 
     // ===== Data Loading =====
@@ -219,7 +235,7 @@
 
     // ===== Dashboard Rendering =====
     function renderDashboard() {
-        const data = getFilteredByAngkatan(mergedData);
+        const data = getFilteredData(mergedData);
         const total = data.length;
         const totalMagang = data.reduce((s, m) => s + m.jumlahMagang, 0);
         const sudah = data.filter(m => m.jumlahMagang > 0).length;
@@ -599,8 +615,16 @@
         const sortVal = $('#sortBy').value;
         const search = ($('#searchInput').value || '').toLowerCase().trim();
         const angkatanFilter = $('#filterAngkatan').value;
+        const semesterFilter = $('#filterSemester').value;
 
-        filteredData = mergedData.filter(m => {
+        filteredData = mergedData.map(m => {
+            // If semester filter active, narrow internships
+            if (semesterFilter !== 'all') {
+                const filtIntern = m.internships.filter(i => String(i.semester).trim() === semesterFilter);
+                return { ...m, internships: filtIntern, jumlahMagang: filtIntern.length };
+            }
+            return m;
+        }).filter(m => {
             // Angkatan filter (table-level)
             if (angkatanFilter !== 'all' && m.angkatan !== angkatanFilter) return false;
             // Filter by magang count
@@ -756,10 +780,21 @@
             renderDashboard();
         });
 
+        // Semester chip buttons (dashboard level)
+        $('#semesterChips').addEventListener('click', e => {
+            const chip = e.target.closest('.chip');
+            if (!chip) return;
+            $$('#semesterChips .chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            selectedSemester = chip.dataset.semester;
+            renderDashboard();
+        });
+
         // Table filters
         $('#filterMagang').addEventListener('change', applyFilters);
         $('#sortBy').addEventListener('change', applyFilters);
         $('#filterAngkatan').addEventListener('change', applyFilters);
+        $('#filterSemester').addEventListener('change', applyFilters);
 
         // Posisi section filters
         let posSearchTimeout;
