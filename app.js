@@ -7,11 +7,15 @@
     let magangData = [];
     let mergedData = [];
     let filteredData = [];
+    let filteredMagangData = [];
     let currentPage = 1;
+    let magangPage = 1;
     let selectedAngkatan = 'all';
     let selectedSemester = 'all';
     let selectedKelas = 'all';
+    let currentSection = 'dashboard';
     const PAGE_SIZE = 15;
+    const MAGANG_PAGE_SIZE = 20;
 
     // Kelas mapping
     const KELAS_MAP = {
@@ -41,6 +45,7 @@
             buildAngkatanSelect();
             buildKelasChips();
             buildKelasSelect();
+            buildMagangSelects();
             renderDashboard();
             renderTable();
             renderMagangTable();
@@ -127,7 +132,8 @@
             const type = String(row['Type'] || row['Type '] || '').trim();
             const feedback = String(row["Employer's Feedback"] || row["Employer's Feedback "] || '').trim();
             const intake = String(row['Intake Year'] || row['Intake Year '] || '').trim();
-            return { name, major, company, position, semester, compensation, type, feedback, intake };
+            const evidence = String(row['Evidence'] || row['Evidence '] || '').trim();
+            return { name, major, company, position, semester, compensation, type, feedback, intake, evidence };
         }).filter(r => r.name && r.company);
     }
 
@@ -558,18 +564,137 @@
         container.innerHTML = html;
     }
 
+    // ===== Magang Selects =====
+    function buildMagangSelects() {
+        const dsMagang = magangData.filter(m => m.major.toLowerCase().includes('data science'));
+
+        // Company select
+        const companies = [...new Set(dsMagang.map(m => m.company).filter(c => c))].sort();
+        const companySelect = $('#filterMagangCompany');
+        if (companySelect) {
+            companies.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c.length > 35 ? c.substring(0, 33) + '...' : c;
+                companySelect.appendChild(opt);
+            });
+        }
+
+        // Position select
+        const positions = [...new Set(dsMagang.map(m => normalizePosition(m.position)).filter(p => p))].sort();
+        const posSelect = $('#filterMagangPosition');
+        if (posSelect) {
+            positions.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                posSelect.appendChild(opt);
+            });
+        }
+
+        // Type select
+        const types = [...new Set(dsMagang.map(m => m.type).filter(t => t))].sort();
+        const typeSelect = $('#filterMagangType');
+        if (typeSelect) {
+            types.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                typeSelect.appendChild(opt);
+            });
+        }
+    }
+
     function renderMagangTable() {
         const dsMagang = magangData.filter(m => m.major.toLowerCase().includes('data science'));
+
+        // Apply filters
+        const search = ($('#filterMagangSearch')?.value || '').toLowerCase().trim();
+        const semFilter = $('#filterMagangSemester')?.value || 'all';
+        const compFilter = $('#filterMagangCompany')?.value || 'all';
+        const posFilter = $('#filterMagangPosition')?.value || 'all';
+        const typeFilter = $('#filterMagangType')?.value || 'all';
+        const sortVal = $('#sortMagang')?.value || 'name-asc';
+
+        filteredMagangData = dsMagang.filter(m => {
+            if (search && !m.name.toLowerCase().includes(search) && !m.company.toLowerCase().includes(search)) return false;
+            if (semFilter !== 'all' && String(m.semester).trim() !== semFilter) return false;
+            if (compFilter !== 'all' && m.company !== compFilter) return false;
+            if (posFilter !== 'all' && normalizePosition(m.position) !== posFilter) return false;
+            if (typeFilter !== 'all' && m.type !== typeFilter) return false;
+            return true;
+        });
+
+        // Sort
+        const [sortField, sortDir] = sortVal.split('-');
+        filteredMagangData.sort((a, b) => {
+            if (sortField === 'name') return sortDir === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+            if (sortField === 'company') return a.company.localeCompare(b.company);
+            if (sortField === 'semester') return Number(a.semester) - Number(b.semester);
+            return 0;
+        });
+
+        // Paginate
+        const start = (magangPage - 1) * MAGANG_PAGE_SIZE;
+        const pageData = filteredMagangData.slice(start, start + MAGANG_PAGE_SIZE);
+
         const tbody = $('#magangBody');
-        tbody.innerHTML = dsMagang.map((m, i) => `<tr>
-            <td>${i + 1}</td>
-            <td style="font-weight:600;color:var(--text-primary)">${m.name}</td>
-            <td>${m.company}</td>
-            <td>${m.position}</td>
-            <td><span class="badge badge-blue">Semester ${m.semester}</span></td>
-            <td>${m.type}</td>
-            <td>${m.compensation}</td>
-        </tr>`).join('');
+        if (pageData.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="no-data">Tidak ada data magang ditemukan</td></tr>';
+        } else {
+            tbody.innerHTML = pageData.map((m, i) => {
+                let evCell = '-';
+                if (m.evidence && m.evidence !== 'undefined') {
+                    if (m.evidence.startsWith('http')) {
+                        evCell = `<a href="${m.evidence}" target="_blank" class="btn-evidence" title="Lihat Evidence">📎 Lihat</a>`;
+                    } else {
+                        evCell = `<span class="badge badge-green">✓ Ada</span>`;
+                    }
+                }
+                return `<tr>
+                <td>${start + i + 1}</td>
+                <td style="font-weight:600;color:var(--text-primary)">${m.name}</td>
+                <td>${m.company}</td>
+                <td>${normalizePosition(m.position)}</td>
+                <td><span class="badge badge-blue">Semester ${m.semester}</span></td>
+                <td><span class="badge badge-purple">${m.type || '-'}</span></td>
+                <td>${m.compensation || '-'}</td>
+                <td>${evCell}</td>
+            </tr>`;
+            }).join('');
+        }
+
+        renderMagangPagination();
+    }
+
+    function renderMagangPagination() {
+        const totalPages = Math.ceil(filteredMagangData.length / MAGANG_PAGE_SIZE);
+        const container = $('#magangPagination');
+        if (!container) return;
+        if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+        let html = '';
+        if (magangPage > 1) html += `<button class="page-btn" onclick="goToMagangPage(${magangPage - 1})">&laquo;</button>`;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || Math.abs(i - magangPage) <= 2) {
+                html += `<button class="page-btn ${i === magangPage ? 'active' : ''}" onclick="goToMagangPage(${i})">${i}</button>`;
+            } else if (Math.abs(i - magangPage) === 3) {
+                html += `<span style="color:var(--text-muted);padding:0 4px">...</span>`;
+            }
+        }
+        if (magangPage < totalPages) html += `<button class="page-btn" onclick="goToMagangPage(${magangPage + 1})">&raquo;</button>`;
+        container.innerHTML = html;
+    }
+
+    window.goToMagangPage = function(page) {
+        magangPage = page;
+        renderMagangTable();
+        $('#sectionMagang .table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    function applyMagangFilters() {
+        magangPage = 1;
+        renderMagangTable();
     }
 
     // ===== Position Section =====
@@ -799,6 +924,8 @@
         $(`#section${section.charAt(0).toUpperCase() + section.slice(1)}`).classList.add('active');
         $(`[data-section="${section}"]`).classList.add('active');
 
+        currentSection = section;
+
         const titles = {
             dashboard: ['Dashboard Statistik', 'Ringkasan data magang mahasiswa Sains Data'],
             mahasiswa: ['Data Mahasiswa', 'Daftar lengkap mahasiswa dan pengalaman magang'],
@@ -813,8 +940,182 @@
     window.goToPage = function (page) {
         currentPage = page;
         renderTable();
-        $('.table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        $('#sectionMahasiswa .table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
+
+    // ===== PDF Export =====
+    function createPDF(orientation) {
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            alert('Library jsPDF belum dimuat. Silakan refresh halaman dan coba lagi.');
+            return null;
+        }
+        return new window.jspdf.jsPDF(orientation, 'mm', 'a4');
+    }
+
+    function savePDF(doc, filename) {
+        doc.save(filename);
+    }
+
+    function addPDFHeader(doc, title, subtitle) {
+        doc.setFontSize(18);
+        doc.setTextColor(59, 130, 246);
+        doc.text(title, 14, 20);
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        const dateStr = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+        doc.text('Diekspor pada: ' + dateStr + (subtitle ? '  |  ' + subtitle : ''), 14, 28);
+    }
+
+    function addAutoTable(doc, startY, head, body, headColor) {
+        try {
+            doc.autoTable({
+                startY: startY,
+                head: [head],
+                body: body,
+                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: { fillColor: headColor, textColor: [255, 255, 255] },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 14, right: 14 },
+            });
+        } catch (e) {
+            console.error('autoTable error:', e);
+            // Fallback: simple text table
+            doc.setFontSize(9);
+            doc.setTextColor(40, 40, 40);
+            let y = startY + 5;
+            body.forEach(function(row, idx) {
+                if (y > 270) { doc.addPage(); y = 20; }
+                doc.text(row.map(function(c) { return String(c); }).join('  |  '), 14, y);
+                y += 6;
+            });
+        }
+    }
+
+    function exportDashboardPDF() {
+        try {
+            var doc = createPDF('l');
+            if (!doc) return;
+
+            var data = getFilteredData(mergedData);
+            var total = data.length;
+            var totalMag = data.reduce(function(s, m) { return s + m.jumlahMagang; }, 0);
+            var sudah = data.filter(function(m) { return m.jumlahMagang > 0; }).length;
+            var belum = total - sudah;
+            var persen = total > 0 ? ((sudah / total) * 100).toFixed(1) : '0';
+
+            addPDFHeader(doc, 'Dashboard Statistik Magang - Sains Data', '');
+
+            // Stats summary
+            doc.setFontSize(12);
+            doc.setTextColor(40, 40, 40);
+            doc.text('Total Mahasiswa: ' + total, 14, 40);
+            doc.text('Total Pengalaman Magang: ' + totalMag, 14, 48);
+            doc.text('Sudah Magang: ' + sudah, 14, 56);
+            doc.text('Belum Magang: ' + belum, 14, 64);
+            doc.text('Persentase Magang: ' + persen + '%', 14, 72);
+
+            // Table
+            var tableData = data.map(function(m, i) {
+                return [
+                    i + 1, m.nim, m.nama, m.angkatan, getKelasLabel(m.kelas),
+                    m.jumlahMagang > 0 ? 'Sudah' : 'Belum', m.jumlahMagang
+                ];
+            });
+
+            addAutoTable(doc, 82,
+                ['No', 'NIM', 'Nama', 'Angkatan', 'Kelas', 'Status', 'Jml Magang'],
+                tableData, [59, 130, 246]
+            );
+
+            savePDF(doc, 'Dashboard_Statistik_Magang.pdf');
+        } catch (err) {
+            console.error('Export Dashboard PDF error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        }
+    }
+
+    function exportMahasiswaPDF() {
+        try {
+            var doc = createPDF('l');
+            if (!doc) return;
+
+            addPDFHeader(doc, 'Data Mahasiswa - Sains Data', 'Total: ' + filteredData.length + ' mahasiswa');
+
+            var tableData = filteredData.map(function(m, i) {
+                return [i + 1, m.nim, m.nama, m.angkatan, getKelasLabel(m.kelas), m.jumlahMagang];
+            });
+
+            addAutoTable(doc, 36,
+                ['No', 'NIM', 'Nama Mahasiswa', 'Angkatan', 'Kelas', 'Jml Magang'],
+                tableData, [59, 130, 246]
+            );
+
+            savePDF(doc, 'Data_Mahasiswa.pdf');
+        } catch (err) {
+            console.error('Export Mahasiswa PDF error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        }
+    }
+
+    function exportMagangPDF() {
+        try {
+            var doc = createPDF('l');
+            if (!doc) return;
+
+            addPDFHeader(doc, 'Data Magang - Sains Data', 'Total: ' + filteredMagangData.length + ' data magang');
+
+            var tableData = filteredMagangData.map(function(m, i) {
+                return [
+                    i + 1, m.name, m.company, normalizePosition(m.position),
+                    'Sem. ' + m.semester, m.type || '-', m.compensation || '-'
+                ];
+            });
+
+            addAutoTable(doc, 36,
+                ['No', 'Nama Mahasiswa', 'Perusahaan', 'Posisi', 'Semester', 'Tipe', 'Kompensasi'],
+                tableData, [16, 185, 129]
+            );
+
+            savePDF(doc, 'Data_Magang.pdf');
+        } catch (err) {
+            console.error('Export Magang PDF error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        }
+    }
+
+    function exportPosisiPDF() {
+        try {
+            var doc = createPDF('p');
+            if (!doc) return;
+
+            addPDFHeader(doc, 'Posisi Magang - Sains Data', '');
+
+            var posMap = getPositionData();
+            var entries = Object.entries(posMap).sort(function(a, b) { return b[1].length - a[1].length; });
+            var tableData = [];
+            entries.forEach(function(entry) {
+                var pos = entry[0];
+                var students = entry[1];
+                students.forEach(function(s, i) {
+                    tableData.push([
+                        i === 0 ? pos : '',
+                        i === 0 ? students.length : '',
+                        s.nama, s.company, 'Sem. ' + s.semester, s.angkatan
+                    ]);
+                });
+            });
+
+            addAutoTable(doc, 36,
+                ['Posisi', 'Jumlah', 'Nama Mahasiswa', 'Perusahaan', 'Semester', 'Angkatan'],
+                tableData, [139, 92, 246]
+            );
+
+            savePDF(doc, 'Posisi_Magang.pdf');
+        } catch (err) {
+            console.error('Export Posisi PDF error:', err);
+            alert('Gagal mengekspor PDF: ' + err.message);
+        }
+    }
 
     // ===== Events =====
     function setupEvents() {
@@ -871,12 +1172,24 @@
             renderDashboard();
         });
 
-        // Table filters
+        // Mahasiswa table filters
         $('#filterMagang').addEventListener('change', applyFilters);
         $('#sortBy').addEventListener('change', applyFilters);
         $('#filterAngkatan').addEventListener('change', applyFilters);
         $('#filterSemester').addEventListener('change', applyFilters);
         $('#filterKelas').addEventListener('change', applyFilters);
+
+        // Magang table filters
+        let magangSearchTimeout;
+        $('#filterMagangSearch').addEventListener('input', () => {
+            clearTimeout(magangSearchTimeout);
+            magangSearchTimeout = setTimeout(applyMagangFilters, 300);
+        });
+        $('#filterMagangSemester').addEventListener('change', applyMagangFilters);
+        $('#filterMagangCompany').addEventListener('change', applyMagangFilters);
+        $('#filterMagangPosition').addEventListener('change', applyMagangFilters);
+        $('#filterMagangType').addEventListener('change', applyMagangFilters);
+        $('#sortMagang').addEventListener('change', applyMagangFilters);
 
         // Posisi section filters
         let posSearchTimeout;
@@ -886,17 +1199,34 @@
         });
         $('#sortPosisi').addEventListener('change', renderPositionSection);
 
-        // Search
+        // Context-aware global search
         let searchTimeout;
         $('#searchInput').addEventListener('input', () => {
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                applyFilters();
-                if ($('#searchInput').value.trim()) {
-                    switchSection('mahasiswa');
+                const query = $('#searchInput').value.trim();
+                if (currentSection === 'magang' || currentSection === 'dashboard') {
+                    // On magang or dashboard page, search goes to magang
+                    if (query) {
+                        $('#filterMagangSearch').value = query;
+                        switchSection('magang');
+                        applyMagangFilters();
+                    }
+                } else {
+                    // Default: search in mahasiswa
+                    applyFilters();
+                    if (query) {
+                        switchSection('mahasiswa');
+                    }
                 }
             }, 300);
         });
+
+        // Export PDF buttons
+        $('#exportDashboard').addEventListener('click', exportDashboardPDF);
+        $('#exportMahasiswa').addEventListener('click', exportMahasiswaPDF);
+        $('#exportMagang').addEventListener('click', exportMagangPDF);
+        $('#exportPosisi').addEventListener('click', exportPosisiPDF);
     }
 
     // ===== Show App =====
