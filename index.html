@@ -71,7 +71,7 @@
                     <p id="pageSubtitle">Ringkasan data magang mahasiswa Sains Data</p>
                     <p class="data-update-badge">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        Data Update Terakhir: 26 Mei 2026, Pukul 04.21 PM
+                        Data Update Terakhir: 17 Juni 2026, Pukul 3.01 PM
                     </p>
                 </div>
                 <div class="topbar-actions">
@@ -257,6 +257,16 @@
                         </select>
                     </div>
                     <div class="filter-group">
+                        <label for="filterJumlahApply">Jumlah Apply:</label>
+                        <select id="filterJumlahApply">
+                            <option value="all">Semua</option>
+                            <option value="1-5">1-5</option>
+                            <option value="6-10">6-10</option>
+                            <option value="11-20">11-20</option>
+                            <option value="20+">Diatas 20</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
                         <label for="sortBy">Urutkan:</label>
                         <select id="sortBy">
                             <option value="nama-asc">Nama (A-Z)</option>
@@ -282,6 +292,7 @@
                                 <th>Angkatan</th>
                                 <th>Kelas</th>
                                 <th>Jumlah Magang</th>
+                                <th>Jumlah Apply</th>
                                 <th>Aksi</th>
                             </tr>
                         </thead>

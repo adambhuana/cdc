@@ -5,6 +5,7 @@
     // ===== State =====
     let mahasiswaData = [];
     let magangData = [];
+    let belumMagangData = [];
     let mergedData = [];
     let filteredData = [];
     let filteredMagangData = [];
@@ -104,9 +105,10 @@
 
     // ===== Data Loading =====
     async function loadData() {
-        const [mhsRes, mgRes] = await Promise.all([
+        const [mhsRes, mgRes, blmRes] = await Promise.all([
             fetch('data_mahasiswa.xlsx').then(r => r.arrayBuffer()),
-            fetch('data_magang.xlsx').then(r => r.arrayBuffer())
+            fetch('data_magang.xlsx').then(r => r.arrayBuffer()),
+            fetch('Mahasiswa Belum Magang.xlsx').then(r => r.arrayBuffer()).catch(() => null)
         ]);
 
         const mhsWb = XLSX.read(mhsRes, { type: 'array' });
@@ -135,6 +137,21 @@
             const evidence = String(row['Evidence'] || row['Evidence '] || '').trim();
             return { name, major, company, position, semester, compensation, type, feedback, intake, evidence };
         }).filter(r => r.name && r.company);
+
+        // Load Mahasiswa Belum Magang data for Jumlah Apply (Data Science sheet only)
+        if (blmRes) {
+            const blmWb = XLSX.read(blmRes, { type: 'array' });
+            // Use 'Data Science' sheet specifically
+            const dsSheetName = blmWb.SheetNames.find(s => s.toLowerCase().includes('data science'));
+            if (dsSheetName) {
+                const blmSheet = blmWb.Sheets[dsSheetName];
+                belumMagangData = XLSX.utils.sheet_to_json(blmSheet).map(row => ({
+                    nim: String(row['NIM'] || '').replace(/^'/, '').trim(),
+                    nama: String(row['Nama'] || '').trim(),
+                    jumlahApply: parseInt(row['Jumlah Apply'] || '0', 10) || 0
+                })).filter(r => r.nim);
+            }
+        }
     }
 
     // ===== Data Processing =====
@@ -224,6 +241,10 @@
                 }
             }
 
+            // Find jumlah apply from belumMagangData
+            const applyRecord = belumMagangData.find(b => b.nim === mhs.nim);
+            const jumlahApply = applyRecord ? applyRecord.jumlahApply : 0;
+
             return {
                 nim: mhs.nim,
                 nama: mhs.nama,
@@ -231,6 +252,7 @@
                 kelas: parseKelas(mhs.kelasPerkuliahan),
                 kelasPerkuliahan: mhs.kelasPerkuliahan,
                 jumlahMagang: internships.length,
+                jumlahApply: jumlahApply,
                 internships: internships
             };
         });
@@ -532,6 +554,10 @@
                                m.jumlahMagang === 2 ? 'badge-blue' : 'badge-green';
             const kelasBadge = m.kelas === 'Pro' ? 'badge-kelas-pro' :
                                m.kelas === 'Aksel' ? 'badge-kelas-aksel' : 'badge-kelas-reg';
+            const applyBadge = m.jumlahApply === 0 ? 'badge-red' :
+                               m.jumlahApply <= 5 ? 'badge-orange' :
+                               m.jumlahApply <= 10 ? 'badge-blue' :
+                               m.jumlahApply <= 20 ? 'badge-purple' : 'badge-green';
             return `<tr>
                 <td>${start + i + 1}</td>
                 <td style="font-family:monospace;color:var(--accent-cyan)">${m.nim}</td>
@@ -539,6 +565,7 @@
                 <td><span class="badge badge-purple">${m.angkatan}</span></td>
                 <td><span class="badge ${kelasBadge}">${getKelasLabel(m.kelas)}</span></td>
                 <td><span class="badge ${badgeClass}">${m.jumlahMagang} magang</span></td>
+                <td><span class="badge ${applyBadge}">${m.jumlahApply} apply</span></td>
                 <td><button class="btn-detail" onclick="showDetail('${m.nim}')">Detail</button></td>
             </tr>`;
         }).join('');
@@ -806,6 +833,7 @@
         const angkatanFilter = $('#filterAngkatan').value;
         const semesterFilter = $('#filterSemester').value;
         const kelasFilter = $('#filterKelas').value;
+        const applyFilter = $('#filterJumlahApply').value;
 
         filteredData = mergedData.map(m => {
             // If semester filter active, narrow internships
@@ -823,6 +851,13 @@
             if (filterVal === '0' && m.jumlahMagang !== 0) return false;
             if (filterVal === '1' && m.jumlahMagang !== 1) return false;
             if (filterVal === '2+' && m.jumlahMagang < 2) return false;
+            // Filter by jumlah apply
+            if (applyFilter !== 'all') {
+                if (applyFilter === '1-5' && (m.jumlahApply < 1 || m.jumlahApply > 5)) return false;
+                if (applyFilter === '6-10' && (m.jumlahApply < 6 || m.jumlahApply > 10)) return false;
+                if (applyFilter === '11-20' && (m.jumlahApply < 11 || m.jumlahApply > 20)) return false;
+                if (applyFilter === '20+' && m.jumlahApply <= 20) return false;
+            }
             // Search
             if (search) {
                 return m.nama.toLowerCase().includes(search) || m.nim.includes(search);
@@ -1042,11 +1077,11 @@
             addPDFHeader(doc, 'Data Mahasiswa - Sains Data', 'Total: ' + filteredData.length + ' mahasiswa');
 
             var tableData = filteredData.map(function(m, i) {
-                return [i + 1, m.nim, m.nama, m.angkatan, getKelasLabel(m.kelas), m.jumlahMagang];
+                return [i + 1, m.nim, m.nama, m.angkatan, getKelasLabel(m.kelas), m.jumlahMagang, m.jumlahApply];
             });
 
             addAutoTable(doc, 36,
-                ['No', 'NIM', 'Nama Mahasiswa', 'Angkatan', 'Kelas', 'Jml Magang'],
+                ['No', 'NIM', 'Nama Mahasiswa', 'Angkatan', 'Kelas', 'Jml Magang', 'Jml Apply'],
                 tableData, [59, 130, 246]
             );
 
@@ -1178,6 +1213,7 @@
         $('#filterAngkatan').addEventListener('change', applyFilters);
         $('#filterSemester').addEventListener('change', applyFilters);
         $('#filterKelas').addEventListener('change', applyFilters);
+        $('#filterJumlahApply').addEventListener('change', applyFilters);
 
         // Magang table filters
         let magangSearchTimeout;
