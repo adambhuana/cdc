@@ -6,6 +6,7 @@
     let mahasiswaData = [];
     let magangData = [];
     let belumMagangData = [];
+    let reportData = [];
     let mergedData = [];
     let filteredData = [];
     let filteredMagangData = [];
@@ -105,10 +106,11 @@
 
     // ===== Data Loading =====
     async function loadData() {
-        const [mhsRes, mgRes, blmRes] = await Promise.all([
+        const [mhsRes, mgRes, blmRes, rptRes] = await Promise.all([
             fetch('data_mahasiswa.xlsx').then(r => r.arrayBuffer()),
             fetch('data_magang.xlsx').then(r => r.arrayBuffer()),
-            fetch('Mahasiswa Belum Magang.xlsx').then(r => r.arrayBuffer()).catch(() => null)
+            fetch('Mahasiswa Belum Magang.xlsx').then(r => r.arrayBuffer()).catch(() => null),
+            fetch('report_magang_terkini.xlsx').then(r => r.arrayBuffer()).catch(() => null)
         ]);
 
         const mhsWb = XLSX.read(mhsRes, { type: 'array' });
@@ -150,6 +152,25 @@
                     nama: String(row['Nama'] || '').trim(),
                     jumlahApply: parseInt(row['Jumlah Apply'] || '0', 10) || 0
                 })).filter(r => r.nim);
+            }
+        }
+
+        // Load report_magang_terkini.xlsx - Detail Mahasiswa sheet
+        if (rptRes) {
+            const rptWb = XLSX.read(rptRes, { type: 'array' });
+            const detailSheetName = rptWb.SheetNames.find(s => s.toLowerCase().includes('detail mahasiswa'));
+            if (detailSheetName) {
+                const rptSheet = rptWb.Sheets[detailSheetName];
+                const rawReport = XLSX.utils.sheet_to_json(rptSheet, { header: 1, defval: '' });
+                // First row is header: No, NIM, Nama, Program Studi, Semester, Jumlah Magang, Detail Magang
+                reportData = rawReport.slice(1).filter(r => r[1] && String(r[1]).trim()).map(r => ({
+                    nim: String(r[1] || '').replace(/^'/, '').trim(),
+                    nama: String(r[2] || '').trim(),
+                    prodi: String(r[3] || '').trim(),
+                    semester: String(r[4] || '').trim(),
+                    jumlahMagang: parseInt(r[5] || '0', 10) || 0,
+                    detailMagang: String(r[6] || '').trim()
+                }));
             }
         }
     }
@@ -256,6 +277,81 @@
                 internships: internships
             };
         });
+
+        // Sync with report_magang_terkini data
+        if (reportData.length > 0) {
+            const mergedNIMs = new Set(mergedData.map(m => m.nim));
+
+            // Update existing students with report data
+            mergedData.forEach(m => {
+                const rpt = reportData.find(r => r.nim === m.nim);
+                if (rpt) {
+                    // Update jumlahMagang from report if report has more up-to-date data
+                    if (rpt.jumlahMagang > m.jumlahMagang && m.internships.length === 0) {
+                        m.jumlahMagang = rpt.jumlahMagang;
+                    }
+                    // Add semester info from report
+                    m.semesterMhs = rpt.semester;
+                    // Parse detail magang from report if student has magang but no internship records
+                    if (rpt.jumlahMagang > 0 && m.internships.length === 0 && rpt.detailMagang && rpt.detailMagang !== '-') {
+                        const details = rpt.detailMagang.split('\n').filter(d => d.trim());
+                        m.internships = details.map(d => {
+                            const parts = d.split(' - ');
+                            return {
+                                name: m.nama,
+                                major: 'Data Science',
+                                company: parts[0] ? parts[0].trim() : d.trim(),
+                                position: parts[1] ? parts[1].trim() : '',
+                                semester: rpt.semester || '',
+                                compensation: '',
+                                type: '',
+                                feedback: '',
+                                intake: '',
+                                evidence: ''
+                            };
+                        });
+                        m.jumlahMagang = m.internships.length;
+                    }
+                }
+            });
+
+            // Add students from report that are not in data_mahasiswa
+            reportData.forEach(rpt => {
+                if (!mergedNIMs.has(rpt.nim)) {
+                    let internships = [];
+                    if (rpt.jumlahMagang > 0 && rpt.detailMagang && rpt.detailMagang !== '-') {
+                        const details = rpt.detailMagang.split('\n').filter(d => d.trim());
+                        internships = details.map(d => {
+                            const parts = d.split(' - ');
+                            return {
+                                name: rpt.nama,
+                                major: 'Data Science',
+                                company: parts[0] ? parts[0].trim() : d.trim(),
+                                position: parts[1] ? parts[1].trim() : '',
+                                semester: rpt.semester || '',
+                                compensation: '',
+                                type: '',
+                                feedback: '',
+                                intake: '',
+                                evidence: ''
+                            };
+                        });
+                    }
+                    const applyRecord = belumMagangData.find(b => b.nim === rpt.nim);
+                    mergedData.push({
+                        nim: rpt.nim,
+                        nama: rpt.nama,
+                        angkatan: getAngkatan(rpt.nim),
+                        kelas: '',
+                        kelasPerkuliahan: '',
+                        jumlahMagang: rpt.jumlahMagang,
+                        jumlahApply: applyRecord ? applyRecord.jumlahApply : 0,
+                        semesterMhs: rpt.semester,
+                        internships: internships
+                    });
+                }
+            });
+        }
 
         mergedData.sort((a, b) => b.jumlahMagang - a.jumlahMagang);
         filteredData = [...mergedData];
